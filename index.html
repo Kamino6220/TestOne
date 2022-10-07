@@ -18,9 +18,21 @@
             <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank"><b>Test Number One</b></a>
             <br><br><br><br><br>
 
-            Now tell, me did you like that link? <br><br>
+            Now tell me did you like that link? <br><br>
             
-            <button onclick="">Yes</button> 
+            <button onclick="doSomething()">Yes</button>
+            <p id="test"></p> 
+            <script>
+                function doSomething(){
+                        document.getElementById("test").innerHTML = "IP: 192.168.0.0.7"
+
+                }
+
+
+
+            </script>
+
+
             
             <div>
          
@@ -41,7 +53,7 @@
                     let image = document.getElementById("image");
          
                     image.src =
-        "SUS.png"
+        "Thanos.png"
          
                     document.getElementById("btnID")
                             .style.display = "none";
