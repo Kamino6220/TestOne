@@ -17,7 +17,42 @@
             
             <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank"><b>Test Number One</b></a>
             <br><br><br><br><br>
-            Now tell me why did you click that button <br>
+
+            Now tell, me did you like that link? <br><br>
+            
+            <button onclick="">Yes</button> 
+            
+            <div>
+         
+                <!-- img element without src attribute -->
+                <img id="image" src="" />
+            </div>
+         
+            <button type="button"
+                onclick="show()" id="btnID">
+                No
+            </button>
+         
+            <script>
+                function show() {
+         
+                    /* Get image and change value
+                    of src attribute */
+                    let image = document.getElementById("image");
+         
+                    image.src =
+        "SUS.png"
+         
+                    document.getElementById("btnID")
+                            .style.display = "none";
+                }
+            </script>
+
+
+
+
+
+            <br>
             <img src="sofa.png" width="200" height="200">
             
 
