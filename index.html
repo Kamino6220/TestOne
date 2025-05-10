@@ -1,149 +1,102 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Space Invaders with Music & Custom Ships</title>
-  <style>
-    body {
-      background-color: black;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      margin: 0;
-    }
-    canvas {
-      background-color: #111;
-      border: 2px solid #fff;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>Space Invaders</title>
+    <style>
+        canvas {
+            background: url('background.png');
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
 </head>
 <body>
-  <canvas id="game" width="400" height="600"></canvas>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <audio id="bgMusic" src="background_music.mp3" loop autoplay></audio>
+    <audio id="shootSound" src="shoot.mp3"></audio>
+    <audio id="hitSound" src="hit.mp3"></audio>
 
-  <script>
-    const canvas = document.getElementById('game');
-    const ctx = canvas.getContext('2d');
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
 
-    // === IMAGE FILES ===
-    // Upload these PNG files to the same folder:
-    // ship1.png, ship2.png, ship3.png
-    const shipImages = ['ship1.png', 'ship2.png', 'ship3.png'];
+        const playerShips = [
+            'ship1.png',
+            'ship2.png',
+            'ship3.png'
+        ];
+        let selectedShipIndex = 0; // Change to 1 or 2 for other ships
+        const playerImg = new Image();
+        playerImg.src = playerShips[selectedShipIndex];
 
-    let selectedShip = prompt("Select your ship (1 for ship1, 2 for ship2, 3 for ship3):");
-    selectedShip = parseInt(selectedShip) - 1;
-    if (selectedShip < 0 || selectedShip > 2) selectedShip = 0;
+        const enemyImg = new Image();
+        enemyImg.src = 'enemy.png';
 
-    const player = {
-      x: canvas.width / 2 - 15,
-      y: canvas.height - 40,
-      width: 30,
-      height: 30,
-      dx: 5,
-      image: new Image()
-    };
-    player.image.src = shipImages[selectedShip];
+        const bulletImg = new Image();
+        bulletImg.src = 'bullet.png';
 
-    const bullets = [];
-    const invaders = [];
-    const rows = 4;
-    const cols = 8;
-    let level = 1;
-    let invaderSpeed = 1;
+        const shootSound = document.getElementById('shootSound');
+        const hitSound = document.getElementById('hitSound');
 
-    // === SOUND FILES ===
-    // Upload these MP3 files to the same folder:
-    // shoot.mp3 → when the player shoots
-    // hit.mp3 → when an invader is hit
-    // background.mp3 → looping background music
-    const shootSound = new Audio('shoot.mp3');
-    const hitSound = new Audio('hit.mp3');
-    const backgroundMusic = new Audio('background.mp3');
-    backgroundMusic.loop = true;
-    backgroundMusic.volume = 0.5;
-    backgroundMusic.play();
+        let player = { x: 368, y: 500, speed: 5 };
+        let bullets = [];
+        let enemy = { x: Math.random() * 736, y: 50, dx: 2, dy: 40 };
 
-    function createInvaders() {
-      invaders.length = 0;
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          invaders.push({ x: c * 40 + 20, y: r * 30 + 20, width: 20, height: 20, alive: true });
-        }
-      }
-    }
-
-    createInvaders();
-
-    document.addEventListener('keydown', e => {
-      if (e.key === 'ArrowLeft') {
-        player.x = Math.max(0, player.x - player.dx);
-      } else if (e.key === 'ArrowRight') {
-        player.x = Math.min(canvas.width - player.width, player.x + player.dx);
-      } else if (e.key === ' ' || e.key === 'Spacebar') {
-        bullets.push({ x: player.x + player.width / 2 - 2, y: player.y, width: 4, height: 10, dy: -5 });
-        shootSound.play();
-      }
-    });
-
-    function update() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      ctx.drawImage(player.image, player.x, player.y, player.width, player.height);
-
-      bullets.forEach((b, index) => {
-        b.y += b.dy;
-        ctx.fillStyle = 'white';
-        ctx.fillRect(b.x, b.y, b.width, b.height);
-        if (b.y < 0) bullets.splice(index, 1);
-      });
-
-      let shiftDown = false;
-      invaders.forEach(inv => {
-        if (inv.alive) {
-          inv.x += invaderSpeed;
-          if (inv.x <= 0 || inv.x + inv.width >= canvas.width) shiftDown = true;
-        }
-      });
-
-      if (shiftDown) {
-        invaderSpeed = -invaderSpeed;
-        invaders.forEach(inv => { if (inv.alive) inv.y += 10; });
-      }
-
-      invaders.forEach(inv => {
-        if (inv.alive) {
-          ctx.fillStyle = 'red';
-          ctx.fillRect(inv.x, inv.y, inv.width, inv.height);
-        }
-      });
-
-      bullets.forEach((b, bIndex) => {
-        invaders.forEach(inv => {
-          if (
-            inv.alive &&
-            b.x < inv.x + inv.width &&
-            b.x + b.width > inv.x &&
-            b.y < inv.y + inv.height &&
-            b.y + b.height > inv.y
-          ) {
-            inv.alive = false;
-            bullets.splice(bIndex, 1);
-            hitSound.play();
-          }
+        document.addEventListener('keydown', e => {
+            if (e.key === 'ArrowLeft') player.x -= player.speed;
+            if (e.key === 'ArrowRight') player.x += player.speed;
+            if (e.key === ' ') {
+                bullets.push({ x: player.x + 24, y: player.y });
+                shootSound.currentTime = 0;
+                shootSound.play();
+            }
         });
-      });
 
-      if (invaders.every(inv => !inv.alive)) {
-        level++;
-        invaderSpeed = 1 + level * 0.5;
-        createInvaders();
-      }
+        function drawPlayer() {
+            ctx.drawImage(playerImg, player.x, player.y, 64, 64);
+        }
 
-      requestAnimationFrame(update);
-    }
+        function drawEnemy() {
+            ctx.drawImage(enemyImg, enemy.x, enemy.y, 64, 64);
+        }
 
-    update();
-  </script>
+        function drawBullets() {
+            bullets.forEach(bullet => {
+                ctx.drawImage(bulletImg, bullet.x, bullet.y, 16, 32);
+            });
+        }
+
+        function update() {
+            enemy.x += enemy.dx;
+            if (enemy.x <= 0 || enemy.x >= 736) {
+                enemy.dx = -enemy.dx;
+                enemy.y += enemy.dy;
+            }
+
+            bullets.forEach(bullet => bullet.y -= 10);
+            bullets = bullets.filter(bullet => bullet.y > 0);
+
+            bullets.forEach((bullet, i) => {
+                const dist = Math.hypot(bullet.x - enemy.x, bullet.y - enemy.y);
+                if (dist < 30) {
+                    hitSound.currentTime = 0;
+                    hitSound.play();
+                    bullets.splice(i, 1); // Only remove bullet, enemy stays
+                }
+            });
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawPlayer();
+            drawEnemy();
+            drawBullets();
+            update();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
 </body>
 </html>
