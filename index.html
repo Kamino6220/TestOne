@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Snake Game</title>
+  <title>Space Invaders Enhanced</title>
   <style>
     body {
-      background-color: #000;
+      background-color: black;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -20,86 +20,130 @@
   </style>
 </head>
 <body>
-  <canvas id="game" width="400" height="400"></canvas>
+  <canvas id="game" width="400" height="600"></canvas>
 
   <script>
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
 
-    const grid = 20;
-    let count = 0;
-    let snake = [{ x: 160, y: 160 }];
-    let dx = grid;
-    let dy = 0;
-    let food = {
-      x: Math.floor(Math.random() * 20) * grid,
-      y: Math.floor(Math.random() * 20) * grid
+    // === IMAGE FILES ===
+    // These PNG files should be uploaded to the same folder:
+    // ship1.png, ship2.png, ship3.png
+    const shipImages = ['ship1.png', 'ship2.png', 'ship3.png'];
+
+    let selectedShip = prompt("Select your ship (1 for ship1, 2 for ship2, 3 for ship3):");
+    selectedShip = parseInt(selectedShip) - 1;
+
+    const player = {
+      x: canvas.width / 2 - 15,
+      y: canvas.height - 30,
+      width: 30,
+      height: 30,
+      dx: 5,
+      image: new Image()
     };
+    player.image.src = shipImages[selectedShip];
 
-    function gameLoop() {
-      requestAnimationFrame(gameLoop);
+    const bullets = [];
+    const invaders = [];
+    const rows = 4;
+    const cols = 8;
+    let level = 1;
+    let invaderSpeed = 1;
 
-      if (++count < 4) return; // slow down game
-      count = 0;
+    // === SOUND FILES ===
+    // Upload these MP3 files to the same folder:
+    // shoot.mp3 → when the player shoots
+    // hit.mp3 → when an invader is hit
+    // background.mp3 → looping background music
+    const shootSound = new Audio('shoot.mp3');
+    const hitSound = new Audio('hit.mp3');
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const backgroundMusic = new Audio('background.mp3');
+    backgroundMusic.loop = true;
+    backgroundMusic.volume = 0.5;
+    backgroundMusic.play();
 
-      // move snake head
-      let head = { x: snake[0].x + dx, y: snake[0].y + dy };
-
-      // wrap around edges
-      if (head.x < 0) head.x = canvas.width - grid;
-      if (head.x >= canvas.width) head.x = 0;
-      if (head.y < 0) head.y = canvas.height - grid;
-      if (head.y >= canvas.height) head.y = 0;
-
-      // check collision with self
-      for (let i = 0; i < snake.length; i++) {
-        if (snake[i].x === head.x && snake[i].y === head.y) {
-          snake = [{ x: 160, y: 160 }];
-          dx = grid;
-          dy = 0;
-          food.x = Math.floor(Math.random() * 20) * grid;
-          food.y = Math.floor(Math.random() * 20) * grid;
+    function createInvaders() {
+      invaders.length = 0;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          invaders.push({ x: c * 40 + 20, y: r * 30 + 20, width: 20, height: 20, alive: true });
         }
       }
-
-      snake.unshift(head);
-
-      // check if food eaten
-      if (head.x === food.x && head.y === food.y) {
-        food.x = Math.floor(Math.random() * 20) * grid;
-        food.y = Math.floor(Math.random() * 20) * grid;
-      } else {
-        snake.pop();
-      }
-
-      // draw food
-      ctx.fillStyle = 'red';
-      ctx.fillRect(food.x, food.y, grid - 1, grid - 1);
-
-      // draw snake
-      ctx.fillStyle = 'lime';
-      snake.forEach(part => ctx.fillRect(part.x, part.y, grid - 1, grid - 1));
     }
 
+    createInvaders();
+
     document.addEventListener('keydown', e => {
-      if (e.key === 'ArrowLeft' && dx === 0) {
-        dx = -grid;
-        dy = 0;
-      } else if (e.key === 'ArrowUp' && dy === 0) {
-        dy = -grid;
-        dx = 0;
-      } else if (e.key === 'ArrowRight' && dx === 0) {
-        dx = grid;
-        dy = 0;
-      } else if (e.key === 'ArrowDown' && dy === 0) {
-        dy = grid;
-        dx = 0;
+      if (e.key === 'ArrowLeft') {
+        player.x -= player.dx;
+      } else if (e.key === 'ArrowRight') {
+        player.x += player.dx;
+      } else if (e.key === ' ' || e.key === 'Spacebar') {
+        bullets.push({ x: player.x + player.width / 2 - 2, y: player.y, width: 4, height: 10, dy: -5 });
+        shootSound.play();
       }
     });
 
-    requestAnimationFrame(gameLoop);
+    function update() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.drawImage(player.image, player.x, player.y, player.width, player.height);
+
+      bullets.forEach((b, index) => {
+        b.y += b.dy;
+        ctx.fillStyle = 'white';
+        ctx.fillRect(b.x, b.y, b.width, b.height);
+        if (b.y < 0) bullets.splice(index, 1);
+      });
+
+      let shiftDown = false;
+      invaders.forEach(inv => {
+        if (inv.alive) {
+          inv.x += invaderSpeed;
+          if (inv.x <= 0 || inv.x + inv.width >= canvas.width) shiftDown = true;
+        }
+      });
+
+      if (shiftDown) {
+        invaderSpeed = -invaderSpeed;
+        invaders.forEach(inv => { if (inv.alive) inv.y += 10; });
+      }
+
+      invaders.forEach(inv => {
+        if (inv.alive) {
+          ctx.fillStyle = 'red';
+          ctx.fillRect(inv.x, inv.y, inv.width, inv.height);
+        }
+      });
+
+      bullets.forEach((b, bIndex) => {
+        invaders.forEach(inv => {
+          if (
+            inv.alive &&
+            b.x < inv.x + inv.width &&
+            b.x + b.width > inv.x &&
+            b.y < inv.y + inv.height &&
+            b.y + b.height > inv.y
+          ) {
+            inv.alive = false;
+            bullets.splice(bIndex, 1);
+            hitSound.play();
+          }
+        });
+      });
+
+      if (invaders.every(inv => !inv.alive)) {
+        level++;
+        invaderSpeed = 1 + level * 0.5;
+        createInvaders();
+      }
+
+      requestAnimationFrame(update);
+    }
+
+    update();
   </script>
 </body>
 </html>
