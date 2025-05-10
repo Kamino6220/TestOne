@@ -4,14 +4,34 @@
     <meta charset="UTF-8">
     <title>Space Invaders</title>
     <style>
+        body {
+            background-color: black;
+            margin: 0;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
         canvas {
             background: url('background.png');
             display: block;
             margin: 0 auto;
         }
+        .scoreboard {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 20px;
+        }
+        .lives {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 20px;
+        }
     </style>
 </head>
 <body>
+    <div class="scoreboard" id="score">Score: 0</div>
+    <div class="lives" id="lives">Lives: 3</div>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
     <audio id="bgMusic" src="background_music.mp3" loop autoplay></audio>
     <audio id="shootSound" src="shoot.mp3"></audio>
@@ -26,7 +46,7 @@
             'ship2.png',
             'ship3.png'
         ];
-        let selectedShipIndex = 0; // Change to 1 or 2 for other ships
+        let selectedShipIndex = 0; // Default ship index
         const playerImg = new Image();
         playerImg.src = playerShips[selectedShipIndex];
 
@@ -41,7 +61,21 @@
 
         let player = { x: 368, y: 500, speed: 5 };
         let bullets = [];
-        let enemy = { x: Math.random() * 736, y: 50, dx: 2, dy: 40 };
+        let enemies = [];
+        let enemyBullets = [];
+        let score = 0;
+        let lives = 3;
+
+        // Create a random enemy
+        function spawnEnemy() {
+            const x = Math.random() * 736;
+            enemies.push({ x: x, y: 50, dx: 2, dy: 40, shootCooldown: 0 });
+        }
+
+        // Create random enemy bullets
+        function spawnEnemyBullet(enemy) {
+            enemyBullets.push({ x: enemy.x + 24, y: enemy.y + 64, dy: 5 });
+        }
 
         document.addEventListener('keydown', e => {
             if (e.key === 'ArrowLeft') player.x -= player.speed;
@@ -51,14 +85,26 @@
                 shootSound.currentTime = 0;
                 shootSound.play();
             }
+
+            // Change ship with left and right arrows
+            if (e.key === 'ArrowUp') {
+                selectedShipIndex = (selectedShipIndex + 1) % playerShips.length;
+                playerImg.src = playerShips[selectedShipIndex];
+            }
+            if (e.key === 'ArrowDown') {
+                selectedShipIndex = (selectedShipIndex - 1 + playerShips.length) % playerShips.length;
+                playerImg.src = playerShips[selectedShipIndex];
+            }
         });
 
         function drawPlayer() {
             ctx.drawImage(playerImg, player.x, player.y, 64, 64);
         }
 
-        function drawEnemy() {
-            ctx.drawImage(enemyImg, enemy.x, enemy.y, 64, 64);
+        function drawEnemies() {
+            enemies.forEach(enemy => {
+                ctx.drawImage(enemyImg, enemy.x, enemy.y, 64, 64);
+            });
         }
 
         function drawBullets() {
@@ -67,34 +113,96 @@
             });
         }
 
-        function update() {
-            enemy.x += enemy.dx;
-            if (enemy.x <= 0 || enemy.x >= 736) {
-                enemy.dx = -enemy.dx;
-                enemy.y += enemy.dy;
-            }
+        function drawEnemyBullets() {
+            enemyBullets.forEach(bullet => {
+                ctx.fillStyle = 'red';
+                ctx.fillRect(bullet.x, bullet.y, 4, 10);
+            });
+        }
 
+        function drawScore() {
+            document.getElementById('score').innerText = `Score: ${score}`;
+        }
+
+        function drawLives() {
+            document.getElementById('lives').innerText = `Lives: ${lives}`;
+        }
+
+        function update() {
+            // Update enemy movement
+            enemies.forEach(enemy => {
+                enemy.x += enemy.dx;
+                if (enemy.x <= 0 || enemy.x >= 736) {
+                    enemy.dx = -enemy.dx;
+                    enemy.y += enemy.dy;
+                }
+
+                // Enemy shooting
+                if (enemy.shootCooldown <= 0) {
+                    spawnEnemyBullet(enemy);
+                    enemy.shootCooldown = 60; // 60 frames cooldown between shots
+                } else {
+                    enemy.shootCooldown--;
+                }
+            });
+
+            // Update enemy bullets
+            enemyBullets.forEach(bullet => bullet.y += bullet.dy);
+            enemyBullets = enemyBullets.filter(bullet => bullet.y < canvas.height);
+
+            // Update player bullets
             bullets.forEach(bullet => bullet.y -= 10);
             bullets = bullets.filter(bullet => bullet.y > 0);
 
+            // Collision detection for player bullets
             bullets.forEach((bullet, i) => {
-                const dist = Math.hypot(bullet.x - enemy.x, bullet.y - enemy.y);
+                enemies.forEach((enemy, j) => {
+                    const dist = Math.hypot(bullet.x - enemy.x, bullet.y - enemy.y);
+                    if (dist < 30) {
+                        hitSound.currentTime = 0;
+                        hitSound.play();
+                        enemies.splice(j, 1); // Remove the enemy
+                        bullets.splice(i, 1); // Remove the bullet
+                        score += 100; // Increment score
+                    }
+                });
+            });
+
+            // Collision detection for enemy bullets
+            enemyBullets.forEach((bullet, i) => {
+                const dist = Math.hypot(bullet.x - player.x, bullet.y - player.y);
                 if (dist < 30) {
-                    hitSound.currentTime = 0;
-                    hitSound.play();
-                    bullets.splice(i, 1); // Only remove bullet, enemy stays
+                    enemyBullets.splice(i, 1); // Remove the enemy bullet
+                    lives--; // Decrease life
+                    if (lives <= 0) {
+                        resetGame(); // Reset the game when lives are 0
+                    }
                 }
             });
+        }
+
+        function resetGame() {
+            enemies = [];
+            enemyBullets = [];
+            score = 0;
+            lives = 3;
+            spawnEnemy(); // Start with one enemy
         }
 
         function gameLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             drawPlayer();
-            drawEnemy();
+            drawEnemies();
             drawBullets();
+            drawEnemyBullets();
             update();
+            drawScore();
+            drawLives();
             requestAnimationFrame(gameLoop);
         }
+
+        // Spawn initial enemies
+        spawnEnemy();
 
         gameLoop();
     </script>
