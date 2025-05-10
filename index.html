@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Space Invaders</title>
+    <title>Space Invaders Countdown</title>
     <style>
         body {
             background-color: black;
@@ -20,24 +20,61 @@
             position: absolute;
             top: 10px;
             left: 10px;
-            font-size: 18px;
+            font-size: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        #buttonRow {
+            display: flex;
+            gap: 5px;
+        }
+        #countdown {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            display: none;
+        }
+        button {
+            background-color: #333;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #555;
         }
     </style>
 </head>
 <body>
     <div id="info">
-        Score: <span id="score">0</span> | Lives: <span id="lives">3</span>  
-        <button id="startButton">Start Game</button>
+        <div>
+            Score: <span id="score">0</span> | Lives: <span id="lives">3</span>
+        </div>
+        <div id="buttonRow">
+            Select Ship: 
+            <button class="shipBtn" data-ship="0">Ship 1</button>
+            <button class="shipBtn" data-ship="1">Ship 2</button>
+            <button class="shipBtn" data-ship="2">Ship 3</button>
+            <button id="startButton">Start Game</button>
+        </div>
     </div>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="countdown">3</div>
+    <canvas id="gameCanvas" width="1600" height="1000"></canvas>
+
     <audio id="bgMusic" src="background_music.mp3" loop></audio>
     <audio id="shootSound" src="shoot.mp3"></audio>
     <audio id="hitSound" src="hit.mp3"></audio>
+    <audio id="powerupSound" src="powerup.mp3"></audio>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const startButton = document.getElementById('startButton');
+        const countdownElem = document.getElementById('countdown');
 
         const playerShips = ['ship1.png', 'ship2.png', 'ship3.png'];
         let selectedShipIndex = 0;
@@ -51,40 +88,78 @@
         const bulletImg = new Image();
         bulletImg.src = 'bullet.png';
 
+        const powerupImgs = {
+            speed: 'speed_boost.png',
+            shield: 'shield.png',
+            strong: 'strong_bullet.png'
+        };
+
         const bgMusic = document.getElementById('bgMusic');
         const shootSound = document.getElementById('shootSound');
         const hitSound = document.getElementById('hitSound');
+        const powerupSound = document.getElementById('powerupSound');
 
-        let player = { x: 368, y: 500, width: 64, height: 64, speed: 5 };
+        let player = { x: canvas.width / 2 - 32, y: canvas.height - 100, width: 64, height: 64, speed: 7 };
         let bullets = [];
         let enemies = [];
         let enemyBullets = [];
+        let powerups = [];
         let score = 0;
         let lives = 3;
         let spawnTimer = 0;
+        let isGameRunning = false;
+        let shieldActive = false;
+        let bulletStrength = 10; // Normal bullet speed
+
+        document.querySelectorAll('.shipBtn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                selectedShipIndex = parseInt(e.target.dataset.ship);
+                playerImg.src = playerShips[selectedShipIndex];
+            });
+        });
+
+        startButton.addEventListener('click', () => {
+            resetGame();
+            countdown(3);
+        });
+
+        function countdown(seconds) {
+            countdownElem.style.display = 'block';
+            countdownElem.innerText = seconds;
+            let interval = setInterval(() => {
+                seconds--;
+                if (seconds > 0) {
+                    countdownElem.innerText = seconds;
+                } else {
+                    clearInterval(interval);
+                    countdownElem.style.display = 'none';
+                    startGame();
+                }
+            }, 1000);
+        }
+
+        function startGame() {
+            bgMusic.play();
+            isGameRunning = true;
+        }
 
         function resetGame() {
             bullets = [];
             enemies = [];
             enemyBullets = [];
+            powerups = [];
             score = 0;
             lives = 3;
+            player.x = canvas.width / 2 - player.width / 2;
+            document.getElementById('score').innerText = score;
+            document.getElementById('lives').innerText = lives;
+            shieldActive = false;
+            bulletStrength = 10;
         }
 
-        startButton.addEventListener('click', () => {
-            bgMusic.play();
-            resetGame();
-        });
-
-        document.addEventListener('keydown', e => {
-            if (e.key === 'ArrowLeft') player.x -= player.speed;
-            if (e.key === 'ArrowRight') player.x += player.speed;
-            if (e.key === ' ') {
-                bullets.push({ x: player.x + player.width / 2 - 8, y: player.y });
-                shootSound.currentTime = 0;
-                shootSound.play();
-            }
-        });
+        let keys = {};
+        document.addEventListener('keydown', e => keys[e.key] = true);
+        document.addEventListener('keyup', e => keys[e.key] = false);
 
         function spawnEnemy() {
             const x = Math.random() * (canvas.width - 64);
@@ -92,17 +167,41 @@
         }
 
         function spawnEnemyBullet(enemy) {
-            enemyBullets.push({ x: enemy.x + enemy.width / 2, y: enemy.y + enemy.height, dy: 4 });
+            enemyBullets.push({ x: enemy.x + enemy.width / 2, y: enemy.y + enemy.height, dy: 6 });
+        }
+
+        function spawnPowerup() {
+            const type = Math.random() > 0.66 ? 'speed' : (Math.random() > 0.5 ? 'shield' : 'strong');
+            const x = Math.random() * (canvas.width - 32);
+            const y = 0; // Start at the top of the canvas
+            powerups.push({ x, y, type, width: 32, height: 32, speed: 2 }); // Speed is how fast they fall
         }
 
         function updateGame() {
+            if (!isGameRunning) return;
+
             spawnTimer++;
-            if (spawnTimer > 100) {
+            if (spawnTimer > 60) {
                 spawnEnemy();
                 spawnTimer = 0;
             }
 
-            // Move enemies
+            if (Math.random() < 0.01) spawnPowerup(); // 1% chance to spawn a power-up
+
+            if (keys['ArrowLeft']) player.x -= player.speed;
+            if (keys['ArrowRight']) player.x += player.speed;
+            if (keys[' '] && bullets.length < 10) {
+                bullets.push({ x: player.x + player.width / 2 - 8, y: player.y });
+                const shotClone = shootSound.cloneNode();
+                shotClone.play();
+            }
+
+            if (player.x < 0) player.x = 0;
+            if (player.x > canvas.width - player.width) player.x = canvas.width - player.width;
+
+            bullets.forEach(bullet => bullet.y -= bulletStrength);
+            bullets = bullets.filter(bullet => bullet.y > 0);
+
             enemies.forEach(enemy => {
                 enemy.y += enemy.speed;
 
@@ -112,25 +211,19 @@
                     enemy.shootCooldown = 100 + Math.random() * 100;
                 }
             });
-
             enemies = enemies.filter(enemy => enemy.y < canvas.height);
-
-            // Move bullets
-            bullets.forEach(bullet => bullet.y -= 10);
-            bullets = bullets.filter(bullet => bullet.y > 0);
 
             enemyBullets.forEach(bullet => bullet.y += bullet.dy);
             enemyBullets = enemyBullets.filter(bullet => bullet.y < canvas.height);
 
-            // Bullet hits enemy
             bullets.forEach((bullet, bi) => {
                 enemies.forEach((enemy, ei) => {
                     if (bullet.x < enemy.x + enemy.width &&
                         bullet.x + 16 > enemy.x &&
                         bullet.y < enemy.y + enemy.height &&
                         bullet.y + 32 > enemy.y) {
-                        hitSound.currentTime = 0;
-                        hitSound.play();
+                        const hitClone = hitSound.cloneNode();
+                        hitClone.play();
                         enemies.splice(ei, 1);
                         bullets.splice(bi, 1);
                         score += 100;
@@ -139,44 +232,66 @@
                 });
             });
 
-            // Enemy bullet hits player
             enemyBullets.forEach((bullet, i) => {
                 if (bullet.x < player.x + player.width &&
                     bullet.x + 4 > player.x &&
                     bullet.y < player.y + player.height &&
                     bullet.y + 10 > player.y) {
-                    enemyBullets.splice(i, 1);
-                    lives--;
-                    document.getElementById('lives').innerText = lives;
-                    if (lives <= 0) {
-                        resetGame();
+                    if (!shieldActive) {
+                        enemyBullets.splice(i, 1);
+                        lives--;
                         document.getElementById('lives').innerText = lives;
-                        document.getElementById('score').innerText = score;
+                        if (lives <= 0) {
+                            isGameRunning = false;
+                            alert('Game Over! Final Score: ' + score);
+                            resetGame();
+                        }
                     }
                 }
             });
 
-            // Keep player in bounds
-            if (player.x < 0) player.x = 0;
-            if (player.x > canvas.width - player.width) player.x = canvas.width - player.width;
+            powerups.forEach((powerup, i) => {
+                powerup.y += powerup.speed; // Power-up falls down
+                if (powerup.y > canvas.height) {
+                    powerups.splice(i, 1); // Remove power-up if it falls off screen
+                }
+                if (powerup.x < player.x + player.width &&
+                    powerup.x + powerup.width > player.x &&
+                    powerup.y < player.y + player.height &&
+                    powerup.y + powerup.height > player.y) {
+                    powerupSound.play();
+                    powerups.splice(i, 1);
+
+                    if (powerup.type === 'speed') {
+                        player.speed *= 2; // Speed boost for 5 seconds
+                        setTimeout(() => player.speed /= 2, 5000); // Revert after 5 seconds
+                    }
+                    if (powerup.type === 'shield') {
+                        shieldActive = true;
+                        setTimeout(() => shieldActive = false, 5000); // Shield active for 5 seconds
+                    }
+                    if (powerup.type === 'strong') {
+                        bulletStrength = 15; // Stronger bullets
+                        setTimeout(() => bulletStrength = 10, 5000); // Revert after 5 seconds
+                    }
+                }
+            });
         }
 
         function drawGame() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
             ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
-
-            enemies.forEach(enemy => {
-                ctx.drawImage(enemyImg, enemy.x, enemy.y, enemy.width, enemy.height);
-            });
-
-            bullets.forEach(bullet => {
-                ctx.drawImage(bulletImg, bullet.x, bullet.y, 16, 32);
-            });
-
+            enemies.forEach(enemy => ctx.drawImage(enemyImg, enemy.x, enemy.y, enemy.width, enemy.height));
+            bullets.forEach(bullet => ctx.drawImage(bulletImg, bullet.x, bullet.y, 16, 32));
             enemyBullets.forEach(bullet => {
-                ctx.fillStyle = 'red';
-                ctx.fillRect(bullet.x, bullet.y, 4, 10);
+                ctx.fillStyle = 'yellow';
+                ctx.fillRect(bullet.x, bullet.y, 6, 15);
+            });
+
+            powerups.forEach(powerup => {
+                const img = new Image();
+                img.src = powerupImgs[powerup.type];
+                ctx.drawImage(img, powerup.x, powerup.y, powerup.width, powerup.height);
             });
         }
 
